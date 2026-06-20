@@ -7,6 +7,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
 <style>
   :root {
     --bg: #0a0e14;
@@ -51,8 +61,21 @@
     top: 0;
     z-index: 50;
     backdrop-filter: blur(8px);
+    overflow: hidden;
+    min-height: 220px;
   }
-  .header-inner { max-width: 980px; margin: 0 auto; }
+  .header-inner { max-width: 980px; margin: 0 auto; position: relative; z-index: 1; }
+
+  /* PixelBlast canvas replaces ballpit */
+  #pixelblast-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
   .eyebrow {
     font-family: var(--mono);
     font-size: 12px;
@@ -73,14 +96,56 @@
     animation: pulse 2s infinite;
   }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* SplitText: h1 chars animate in */
   h1 {
     font-size: 28px;
     font-weight: 800;
     letter-spacing: -0.01em;
     margin-bottom: 6px;
+    overflow: hidden;
   }
-  .subtitle { color: var(--text-dim); font-size: 14px; max-width: 640px; margin-bottom: 20px; }
+  h1 .split-char {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(36px);
+    animation: charIn 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
+    will-change: transform, opacity;
+  }
+  /* space chars between words */
+  h1 .split-space {
+    display: inline-block;
+    width: 0.28em;
+  }
+  @keyframes charIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
 
+  /* BlurText: subtitle words blur-fade in */
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 14px;
+    max-width: 640px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0;
+    line-height: 1.6;
+  }
+  .subtitle .blur-word {
+    display: inline-block;
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(8px);
+    animation: wordIn 0.55s ease forwards;
+    will-change: transform, filter, opacity;
+    margin-right: 0.28em;
+  }
+  @keyframes wordIn {
+    to { opacity: 1; filter: blur(0px); transform: translateY(0); }
+  }
+
+  /* buttons */
   .run-btn {
     font-family: var(--mono);
     font-size: 13px;
@@ -152,18 +217,76 @@
     padding: 20px 0;
   }
 
-  /* ---------- Source cards ---------- */
+  /* ---------- Source cards — Magic Bento enhanced ---------- */
   .source-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 14px;
+    position: relative;
   }
+
+  .bento-glow {
+    --glow-x: 50%;
+    --glow-y: 50%;
+    --glow-intensity: 0;
+    --glow-radius: 260px;
+    --glow-color: 22, 217, 122;
+    overflow: hidden;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: box-shadow 0.2s ease;
+  }
+  .bento-glow::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    background: radial-gradient(
+      var(--glow-radius) circle at var(--glow-x) var(--glow-y),
+      rgba(var(--glow-color), calc(var(--glow-intensity) * 0.9)) 0%,
+      rgba(var(--glow-color), calc(var(--glow-intensity) * 0.4)) 35%,
+      transparent 65%
+    );
+    border-radius: inherit;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 2;
+  }
+
   .source-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 16px;
+    cursor: default;
+    position: relative;
   }
+
+  .magnet-lines-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .source-card:hover .magnet-lines-canvas { opacity: 1; }
+  .source-card > *:not(.magnet-lines-canvas) { position: relative; z-index: 2; }
+
+  .vcard {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--gray);
+    border-radius: 8px;
+    padding: 18px 20px;
+    cursor: default;
+  }
+
   .source-top {
     display: flex;
     justify-content: space-between;
@@ -188,12 +311,55 @@
   .tag-citizen_report { background: var(--amber-bg); color: var(--amber); }
   .tag-volunteer_radio { background: rgba(187,134,255,0.1); color: #bb86ff; }
   .tag-social_rumor { background: var(--red-bg); color: var(--red); }
-
   .source-text { font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+
+  /* ---------- Shiny Text on section titles ---------- */
+  .section-title.shiny-text {
+    background: linear-gradient(
+      120deg,
+      var(--text) 40%,
+      #ffffff 50%,
+      var(--text) 60%
+    );
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shineSweep 4.5s linear infinite;
+  }
+  @keyframes shineSweep {
+    0% { background-position: 120% 0; }
+    100% { background-position: -20% 0; }
+  }
+
+  /* ---------- Count badge (CountUp) ---------- */
+  .count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--green);
+    background: var(--green-bg);
+    border: 1px solid rgba(22,217,122,0.25);
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
 
   /* ---------- Claims ---------- */
   .claims-by-source { display: flex; flex-direction: column; gap: 16px; }
-  .claim-source-block { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .claim-source-block {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+  .claim-source-block.revealed { opacity: 1; transform: translateY(0); }
   .claim-source-block .src-label { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); margin-bottom: 10px; }
   .claim-chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .claim-chip {
@@ -216,19 +382,108 @@
   }
   .claim-chip.low-spec { border-style: dashed; opacity: 0.6; }
 
-  /* ---------- Verification cards ---------- */
-  .verify-grid { display: flex; flex-direction: column; gap: 14px; }
-  .vcard {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--gray);
-    border-radius: 8px;
-    padding: 18px 20px;
+  /* ---------- Verification section — two-column layout ---------- */
+  .verify-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 20px;
+    align-items: start;
   }
-  .vcard.status-corroborated { border-left-color: var(--green); }
-  .vcard.status-contradicted { border-left-color: var(--red); }
-  .vcard.status-unconfirmed { border-left-color: var(--amber); }
-  .vcard.status-low_confidence { border-left-color: var(--gray); }
+  .verify-grid { display: flex; flex-direction: column; gap: 14px; }
+
+  /* AnimatedList sidebar */
+  .animated-list-sidebar {
+    position: sticky;
+    top: 240px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .al-header {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .al-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px 10px;
+    position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .al-scroll::-webkit-scrollbar { width: 5px; }
+  .al-scroll::-webkit-scrollbar-track { background: transparent; }
+  .al-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .al-item {
+    font-size: 12px;
+    padding: 9px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-dim);
+    line-height: 1.45;
+    margin-bottom: 6px;
+    border: 1px solid transparent;
+    opacity: 0;
+    transform: scale(0.88);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    /* animation applied by JS via IntersectionObserver */
+  }
+  .al-item.visible {
+    animation: alItemIn 0.22s ease forwards;
+  }
+  @keyframes alItemIn {
+    to { opacity: 1; transform: scale(1); }
+  }
+  .al-item:hover, .al-item.selected {
+    background: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .al-item .al-cat {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 3px;
+  }
+  .al-item.selected .al-cat { color: var(--green); }
+  .al-top-fade {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 32px;
+    background: linear-gradient(to bottom, var(--bg-panel), transparent);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  .al-bottom-fade {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 48px;
+    background: linear-gradient(to top, var(--bg-panel), transparent);
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .al-empty {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-faint);
+    padding: 18px 10px;
+    text-align: center;
+  }
+
+  /* ---------- Verification cards ---------- */
+  .vcard.status-corroborated { border-left-color: var(--green); --glow-color: 22, 217, 122; }
+  .vcard.status-contradicted { border-left-color: var(--red); --glow-color: 255, 71, 87; }
+  .vcard.status-unconfirmed { border-left-color: var(--amber); --glow-color: 255, 167, 38; }
+  .vcard.status-low_confidence { border-left-color: var(--gray); --glow-color: 107, 119, 133; }
 
   .vcard-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
   .vcard-topic { font-weight: 600; font-size: 15px; }
@@ -295,8 +550,29 @@
     border-radius: 12px;
     padding: 28px;
   }
-  .report-headline { font-size: 21px; font-weight: 800; margin-bottom: 22px; line-height: 1.35; }
-  .report-block { margin-bottom: 22px; }
+  .report-headline {
+    font-size: 21px;
+    font-weight: 800;
+    margin-bottom: 22px;
+    line-height: 1.35;
+    min-height: 1.35em;
+  }
+  .report-headline .tt-cursor {
+    display: inline-block;
+    width: 2px;
+    margin-left: 2px;
+    background: var(--green);
+    animation: ttBlink 0.8s step-end infinite;
+  }
+  @keyframes ttBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  .report-block {
+    margin-bottom: 22px;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+  .report-block.revealed { opacity: 1; transform: translateY(0); }
   .report-block:last-child { margin-bottom: 0; }
   .report-block-title {
     font-family: var(--mono);
@@ -304,11 +580,18 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     margin-bottom: 10px;
+    background-size: 200% 100%;
+    animation: gradientSweep 5s ease infinite;
   }
-  .report-block-title.confirmed { color: var(--green); }
-  .report-block-title.disputed { color: var(--red); }
-  .report-block-title.unverified { color: var(--amber); }
+  .report-block-title.confirmed { background-image: linear-gradient(90deg, var(--green), #8af7c4, var(--green)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .report-block-title.disputed { background-image: linear-gradient(90deg, var(--red), #ff9aa3, var(--red)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .report-block-title.unverified { background-image: linear-gradient(90deg, var(--amber), #ffd699, var(--amber)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .report-block-title.steps { color: var(--text-dim); }
+  @keyframes gradientSweep {
+    0% { background-position: 0% 0; }
+    50% { background-position: 100% 0; }
+    100% { background-position: 0% 0; }
+  }
 
   ul.confirmed-list { list-style: none; }
   ul.confirmed-list li {
@@ -372,7 +655,17 @@
     justify-content: center;
   }
 
-  /* ---------- Loading ---------- */
+  /* ---------- Bento particles ---------- */
+  .bento-particle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* ---------- Spinner ---------- */
   .spinner {
     display: inline-block;
     width: 13px; height: 13px;
@@ -385,19 +678,32 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  @media (max-width: 640px) {
+  @media (max-width: 760px) {
     .split { grid-template-columns: 1fr; }
     .vs-divider { padding: 4px 0; }
+    .verify-layout { grid-template-columns: 1fr; }
+    .animated-list-sidebar { position: static; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    h1 .split-char, .subtitle .blur-word { animation: none !important; opacity: 1 !important; transform: none !important; filter: none !important; }
+    #pixelblast-canvas { display: none; }
+    .section-title.shiny-text { animation: none !important; background: none !important; -webkit-background-clip: initial !important; background-clip: initial !important; color: var(--text) !important; }
+    .report-block-title { animation: none !important; }
+    .claim-source-block, .report-block { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .report-headline .tt-cursor { display: none !important; }
+    .magnet-lines-canvas { display: none !important; }
   }
 </style>
 </head>
 <body>
 
 <header>
+  <canvas id="pixelblast-canvas"></canvas>
   <div class="header-inner">
     <div class="eyebrow">Live verification pipeline</div>
-    <h1>Disaster Response Agent</h1>
-    <p class="subtitle">
+    <h1 id="main-title">Disaster Response Agent</h1>
+    <p class="subtitle" id="main-subtitle">
       Cross-verifying 5 independent reports from the first hours after Cyclone Amphan's
       landfall — South 24 Parganas, West Bengal, 20 May 2020. Three agents extract,
       cross-check, and synthesize a responder-ready situation report.
@@ -409,11 +715,10 @@
 </header>
 
 <main>
-
   <section id="sourcesSection">
     <div class="section-head">
       <div class="section-label">Stage 1</div>
-      <div class="section-title">Raw Sources</div>
+      <div class="section-title shiny-text">Raw Sources</div>
     </div>
     <div id="sourcesContent" class="empty-hint">Run verification to load the 5 incoming reports.</div>
   </section>
@@ -421,7 +726,7 @@
   <section id="claimsSection">
     <div class="section-head">
       <div class="section-label">Stage 2 — Extractor Agent</div>
-      <div class="section-title">Extracted Claims</div>
+      <div class="section-title shiny-text">Extracted Claims<span class="count-badge" id="claimsCountBadge" style="display:none;">⊙ <span id="claimsCountVal">0</span> claims</span></div>
     </div>
     <div id="claimsContent" class="empty-hint">Waiting for extraction.</div>
   </section>
@@ -429,7 +734,7 @@
   <section id="verifySection">
     <div class="section-head">
       <div class="section-label">Stage 3 — Cross-Verifier Agent</div>
-      <div class="section-title">Verification Trail</div>
+      <div class="section-title shiny-text">Verification Trail</div>
     </div>
     <div id="verifyContent" class="empty-hint">Waiting for cross-verification.</div>
   </section>
@@ -437,13 +742,553 @@
   <section id="reportSection">
     <div class="section-head">
       <div class="section-label">Stage 4 — Reporter Agent</div>
-      <div class="section-title">Situation Report</div>
+      <div class="section-title shiny-text">Situation Report</div>
     </div>
     <div id="reportContent" class="empty-hint">Waiting for final report.</div>
   </section>
-
 </main>
 
+<!-- =====================================================================
+     1. SplitText + BlurText — vanilla JS, no GSAP, no build step
+     ===================================================================== -->
+<script>
+(function () {
+  /* -- SplitText on <h1> -- */
+  function splitTextChars(el, baseDelay, staggerMs) {
+    const original = el.textContent;
+    el.innerHTML = '';
+    let i = 0;
+    for (const ch of original) {
+      if (ch === ' ') {
+        el.appendChild(document.createTextNode('\u00A0'));
+      } else {
+        const span = document.createElement('span');
+        span.className = 'split-char';
+        span.textContent = ch;
+        span.style.animationDelay = (baseDelay + i * staggerMs) + 'ms';
+        el.appendChild(span);
+        i++;
+      }
+    }
+  }
+
+  /* -- BlurText on .subtitle -- */
+  function blurTextWords(el, baseDelay, staggerMs) {
+    const words = el.textContent.trim().split(/\s+/);
+    el.innerHTML = '';
+    words.forEach((w, i) => {
+      const span = document.createElement('span');
+      span.className = 'blur-word';
+      span.textContent = w;
+      span.style.animationDelay = (baseDelay + i * staggerMs) + 'ms';
+      el.appendChild(span);
+    });
+  }
+
+  /* Wait for fonts to avoid FOUT-induced mis-splits */
+  const run = () => {
+    const h1 = document.getElementById('main-title');
+    const sub = document.getElementById('main-subtitle');
+    if (h1) splitTextChars(h1, 80, 38);
+    if (sub) blurTextWords(sub, 680, 32);
+  };
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(run);
+  } else {
+    run();
+  }
+})();
+</script>
+
+<!-- =====================================================================
+     2. PixelBlast — replaces ballpit canvas
+        Pure Three.js (already importmapped), self-contained module
+     ===================================================================== -->
+<script type="module">
+import * as THREE from 'three';
+
+const VERTEX_SRC = `
+void main() {
+  gl_Position = vec4(position, 1.0);
+}`;
+
+const FRAGMENT_SRC = `
+precision highp float;
+uniform vec3  uColor;
+uniform vec2  uResolution;
+uniform float uTime;
+uniform float uPixelSize;
+uniform float uScale;
+uniform float uDensity;
+uniform float uEdgeFade;
+uniform int   uShapeType;
+
+out vec4 fragColor;
+
+float Bayer2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
+#define Bayer4(a)(Bayer2(.5*(a))*.25+Bayer2(a))
+#define Bayer8(a)(Bayer4(.5*(a))*.25+Bayer2(a))
+
+float hash11(float n){return fract(sin(n)*43758.5453);}
+float vnoise(vec3 p){
+  vec3 ip=floor(p),fp=fract(p);
+  float n000=hash11(dot(ip+vec3(0,0,0),vec3(1,57,113)));
+  float n100=hash11(dot(ip+vec3(1,0,0),vec3(1,57,113)));
+  float n010=hash11(dot(ip+vec3(0,1,0),vec3(1,57,113)));
+  float n110=hash11(dot(ip+vec3(1,1,0),vec3(1,57,113)));
+  float n001=hash11(dot(ip+vec3(0,0,1),vec3(1,57,113)));
+  float n101=hash11(dot(ip+vec3(1,0,1),vec3(1,57,113)));
+  float n011=hash11(dot(ip+vec3(0,1,1),vec3(1,57,113)));
+  float n111=hash11(dot(ip+vec3(1,1,1),vec3(1,57,113)));
+  vec3 w=fp*fp*fp*(fp*(fp*6.-15.)+10.);
+  return mix(mix(mix(n000,n100,w.x),mix(n010,n110,w.x),w.y),
+             mix(mix(n001,n101,w.x),mix(n011,n111,w.x),w.y),w.z)*2.-1.;
+}
+float fbm(vec2 uv,float t){
+  vec3 p=vec3(uv*uScale,t);
+  float s=1.;float a=1.;float f=1.;
+  for(int i=0;i<5;i++){s+=a*vnoise(p*f);f*=1.25;a*=1.0;}
+  return s*.5+.5;
+}
+float maskCircle(vec2 p,float cov){
+  float r=sqrt(cov)*.25;
+  float d=length(p-0.5)-r;
+  return cov*(1.-smoothstep(-fwidth(d),fwidth(d),d*2.));
+}
+float maskDiamond(vec2 p,float cov){
+  float r=sqrt(cov)*.564;
+  return step(abs(p.x-.49)+abs(p.y-.49),r);
+}
+
+void main(){
+  vec2 fc=gl_FragCoord.xy-uResolution*.5;
+  float ar=uResolution.x/uResolution.y;
+  vec2 pid=floor(fc/uPixelSize);
+  vec2 puv=fract(fc/uPixelSize);
+  float cell=8.*uPixelSize;
+  vec2 cid=floor(fc/cell);
+  vec2 uv=cid*cell/uResolution*vec2(ar,1.);
+  float base=fbm(uv,uTime*.05);
+  float feed=base*.5-.65+(uDensity-.5)*.3;
+  float bayer=Bayer8(fc/uPixelSize)-.5;
+  float bw=step(.5,feed+bayer);
+  float h=fract(sin(dot(pid,vec2(127.1,311.7)))*43758.5453);
+  float cov=bw*(1.+(h-.5)*.1);
+  float M;
+  if(uShapeType==1) M=maskCircle(puv,cov);
+  else if(uShapeType==3) M=maskDiamond(puv,cov);
+  else M=cov;
+  if(uEdgeFade>0.){
+    vec2 norm=gl_FragCoord.xy/uResolution;
+    float edge=min(min(norm.x,norm.y),min(1.-norm.x,1.-norm.y));
+    M*=smoothstep(0.,uEdgeFade,edge);
+  }
+  vec3 c=uColor;
+  vec3 sc=mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(.0031308,c));
+  fragColor=vec4(sc,M);
+}`;
+
+const canvas = document.getElementById('pixelblast-canvas');
+if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  // nothing
+} else {
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: 'high-performance' });
+  renderer.setClearAlpha(0);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const uniforms = {
+    uResolution: { value: new THREE.Vector2() },
+    uTime:       { value: 0 },
+    uColor:      { value: new THREE.Color('#16d97a') },
+    uPixelSize:  { value: 3 * renderer.getPixelRatio() },
+    uScale:      { value: 2 },
+    uDensity:    { value: 0.72 },
+    uEdgeFade:   { value: 0.18 },
+    uShapeType:  { value: 1 }, // circles
+  };
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  const material = new THREE.ShaderMaterial({
+    vertexShader: VERTEX_SRC, fragmentShader: FRAGMENT_SRC,
+    uniforms, transparent: true, depthTest: false, depthWrite: false,
+    glslVersion: THREE.GLSL3,
+  });
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), material));
+
+  const clock = new THREE.Clock();
+  const timeOffset = Math.random() * 500;
+
+  const resize = () => {
+    const w = canvas.parentElement.clientWidth || window.innerWidth;
+    const h = canvas.parentElement.clientHeight || 220;
+    renderer.setSize(w, h, false);
+    uniforms.uResolution.value.set(renderer.domElement.width, renderer.domElement.height);
+    uniforms.uPixelSize.value = 3 * renderer.getPixelRatio();
+  };
+  resize();
+  new ResizeObserver(resize).observe(canvas.parentElement);
+
+  // Alternate color slowly between green and amber for subtle life
+  let raf;
+  const colors = [new THREE.Color('#16d97a'), new THREE.Color('#ffa726'), new THREE.Color('#78aaff')];
+  let colorIdx = 0, colorT = 0;
+
+  (function animate() {
+    raf = requestAnimationFrame(animate);
+    const t = timeOffset + clock.getElapsedTime() * 0.4;
+    uniforms.uTime.value = t;
+    // slow color oscillation
+    colorT += 0.002;
+    if (colorT >= 1) { colorT = 0; colorIdx = (colorIdx + 1) % colors.length; }
+    const next = colors[(colorIdx + 1) % colors.length];
+    uniforms.uColor.value.lerpColors(colors[colorIdx], next, colorT);
+    renderer.render(scene, camera);
+  })();
+}
+</script>
+
+<!-- =====================================================================
+     3. Magic Bento (unchanged from original)
+     ===================================================================== -->
+<script type="module">
+  import { gsap } from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm';
+
+  const MOBILE_BREAKPOINT = 768;
+  const initializedSpotlights = new WeakSet();
+
+  function prefersReducedMotion() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+  function updateGlowProps(card, mouseX, mouseY, intensity, radius) {
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--glow-x', `${((mouseX - r.left) / r.width) * 100}%`);
+    card.style.setProperty('--glow-y', `${((mouseY - r.top) / r.height) * 100}%`);
+    card.style.setProperty('--glow-intensity', intensity.toString());
+    card.style.setProperty('--glow-radius', `${radius}px`);
+  }
+  function spawnParticle(card, glowColor) {
+    const r = card.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'bento-particle';
+    el.style.cssText = `left:${Math.random()*r.width}px;top:${Math.random()*r.height}px;background:rgba(${glowColor},1);box-shadow:0 0 5px rgba(${glowColor},0.6);`;
+    card.appendChild(el);
+    gsap.fromTo(el,{scale:0,opacity:0},{scale:1,opacity:1,duration:0.3,ease:'back.out(1.7)'});
+    gsap.to(el,{x:(Math.random()-.5)*80,y:(Math.random()-.5)*80,rotation:Math.random()*360,duration:2+Math.random()*2,ease:'none',repeat:-1,yoyo:true});
+    gsap.to(el,{opacity:0.25,duration:1.5,ease:'power2.inOut',repeat:-1,yoyo:true});
+    return el;
+  }
+  function bindCardEffects(card, { glowColor, particleCount, enableTilt, enableMagnetism, clickEffect }) {
+    let particles = [], timeouts = [], hovered = false;
+    card.addEventListener('mouseenter', () => {
+      hovered = true;
+      for (let i = 0; i < particleCount; i++) {
+        const t = setTimeout(() => { if (!hovered) return; particles.push(spawnParticle(card, glowColor)); }, i * 80);
+        timeouts.push(t);
+      }
+      if (enableTilt) gsap.to(card,{rotateX:4,rotateY:4,duration:0.3,ease:'power2.out',transformPerspective:1000});
+    });
+    card.addEventListener('mouseleave', () => {
+      hovered = false;
+      timeouts.forEach(clearTimeout); timeouts = [];
+      particles.forEach(p => gsap.to(p,{scale:0,opacity:0,duration:0.25,ease:'back.in(1.7)',onComplete:()=>p.remove()}));
+      particles = [];
+      if (enableTilt) gsap.to(card,{rotateX:0,rotateY:0,duration:0.3,ease:'power2.out'});
+      if (enableMagnetism) gsap.to(card,{x:0,y:0,duration:0.3,ease:'power2.out'});
+    });
+    card.addEventListener('mousemove', e => {
+      if (!enableTilt && !enableMagnetism) return;
+      const r = card.getBoundingClientRect();
+      const x = e.clientX-r.left, y = e.clientY-r.top, cx = r.width/2, cy = r.height/2;
+      if (enableTilt) gsap.to(card,{rotateX:((y-cy)/cy)*-8,rotateY:((x-cx)/cx)*8,duration:0.1,ease:'power2.out',transformPerspective:1000});
+      if (enableMagnetism) gsap.to(card,{x:(x-cx)*.04,y:(y-cy)*.04,duration:0.3,ease:'power2.out'});
+    });
+    if (clickEffect) {
+      card.addEventListener('click', e => {
+        const r = card.getBoundingClientRect();
+        const x = e.clientX-r.left, y = e.clientY-r.top;
+        const maxD = Math.max(Math.hypot(x,y),Math.hypot(x-r.width,y),Math.hypot(x,y-r.height),Math.hypot(x-r.width,y-r.height));
+        const ripple = document.createElement('div');
+        ripple.style.cssText = `position:absolute;width:${maxD*2}px;height:${maxD*2}px;border-radius:50%;pointer-events:none;z-index:1000;left:${x-maxD}px;top:${y-maxD}px;background:radial-gradient(circle,rgba(${glowColor},0.35) 0%,rgba(${glowColor},0.15) 30%,transparent 70%);`;
+        card.appendChild(ripple);
+        gsap.fromTo(ripple,{scale:0,opacity:1},{scale:1,opacity:0,duration:0.7,ease:'power2.out',onComplete:()=>ripple.remove()});
+      });
+    }
+  }
+  function initSpotlight(container, cardSelector, { glowColor, spotlightRadius }) {
+    if (initializedSpotlights.has(container)) return;
+    initializedSpotlights.add(container);
+    const proximity = spotlightRadius * 0.5, fadeDistance = spotlightRadius * 0.75;
+    const spot = document.createElement('div');
+    spot.style.cssText = `position:fixed;width:700px;height:700px;border-radius:50%;pointer-events:none;z-index:200;opacity:0;transform:translate(-50%,-50%);mix-blend-mode:screen;background:radial-gradient(circle,rgba(${glowColor},0.12) 0%,rgba(${glowColor},0.06) 20%,rgba(${glowColor},0.03) 35%,rgba(${glowColor},0.01) 55%,transparent 70%);`;
+    document.body.appendChild(spot);
+    document.addEventListener('mousemove', e => {
+      const rect = container.getBoundingClientRect();
+      const inside = e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
+      const cards = container.querySelectorAll(cardSelector);
+      if (!inside) { gsap.to(spot,{opacity:0,duration:0.3}); cards.forEach(c=>c.style.setProperty('--glow-intensity','0')); return; }
+      let minDist = Infinity;
+      cards.forEach(card => {
+        const cr = card.getBoundingClientRect();
+        const cx = cr.left+cr.width/2, cy = cr.top+cr.height/2;
+        const dist = Math.max(0, Math.hypot(e.clientX-cx,e.clientY-cy) - Math.max(cr.width,cr.height)/2);
+        minDist = Math.min(minDist, dist);
+        const intensity = dist<=proximity?1:dist<=fadeDistance?(fadeDistance-dist)/(fadeDistance-proximity):0;
+        updateGlowProps(card, e.clientX, e.clientY, intensity, spotlightRadius);
+      });
+      gsap.to(spot,{left:e.clientX,top:e.clientY,duration:0.08});
+      const targetOpacity = minDist<=proximity?.75:minDist<=fadeDistance?((fadeDistance-minDist)/(fadeDistance-proximity))*.75:0;
+      gsap.to(spot,{opacity:targetOpacity,duration:targetOpacity>0?.15:.4});
+    });
+    document.addEventListener('mouseleave',()=>{container.querySelectorAll(cardSelector).forEach(c=>c.style.setProperty('--glow-intensity','0'));gsap.to(spot,{opacity:0,duration:0.3});});
+  }
+
+  window.applyMagicBento = function(containerSelector, cardSelector, opts={}) {
+    if (prefersReducedMotion() || window.innerWidth <= MOBILE_BREAKPOINT) return;
+    const options = { glowColor:'22, 217, 122', spotlightRadius:280, particleCount:6, enableTilt:true, enableMagnetism:true, clickEffect:true, ...opts };
+    const container = document.querySelector(containerSelector);
+    if (!container) return;
+    container.querySelectorAll(cardSelector).forEach(card => {
+      card.classList.add('bento-glow');
+      card.style.setProperty('--glow-color', options.glowColor);
+      bindCardEffects(card, options);
+    });
+    initSpotlight(container, cardSelector, options);
+  };
+</script>
+
+<!-- =====================================================================
+     4. AnimatedList — vanilla JS with IntersectionObserver
+     ===================================================================== -->
+<script>
+/* Global AnimatedList state for Stage 3 sidebar */
+const AL = {
+  items: [],        // { category, text }
+  selectedIdx: -1,
+  scrollEl: null,
+  listEl: null,
+
+  init(scrollEl, listEl) {
+    this.scrollEl = scrollEl;
+    this.listEl = listEl;
+    this.scrollEl.addEventListener('scroll', () => AL.updateFades());
+    this.render();
+  },
+
+  setItems(items) {
+    this.items = items;
+    this.selectedIdx = -1;
+    this.render();
+  },
+
+  render() {
+    const list = this.listEl;
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!this.items.length) {
+      list.innerHTML = '<div class="al-empty">No claims yet.</div>';
+      return;
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { root: this.scrollEl, threshold: 0.3 });
+
+    this.items.forEach((item, i) => {
+      const el = document.createElement('div');
+      el.className = 'al-item';
+      el.dataset.index = i;
+      el.innerHTML = `<div class="al-cat">${esc(item.category)}</div>${esc(item.text)}`;
+      el.addEventListener('mouseenter', () => this.select(i));
+      el.addEventListener('click', () => this.select(i));
+      list.appendChild(el);
+      // small stagger before observing
+      setTimeout(() => observer.observe(el), i * 35);
+    });
+    this.updateFades();
+  },
+
+  select(idx) {
+    this.selectedIdx = idx;
+    this.listEl.querySelectorAll('.al-item').forEach((el, i) => {
+      el.classList.toggle('selected', i === idx);
+    });
+  },
+
+  updateFades() {
+    if (!this.scrollEl) return;
+    const { scrollTop, scrollHeight, clientHeight } = this.scrollEl;
+    const topFade = this.scrollEl.parentElement.querySelector('.al-top-fade');
+    const botFade = this.scrollEl.parentElement.querySelector('.al-bottom-fade');
+    if (topFade) topFade.style.opacity = Math.min(scrollTop / 40, 1);
+    if (botFade) {
+      const dist = scrollHeight - (scrollTop + clientHeight);
+      botFade.style.opacity = scrollHeight <= clientHeight ? 0 : Math.min(dist / 40, 1);
+    }
+  }
+};
+
+/* Keyboard nav for AnimatedList */
+document.addEventListener('keydown', e => {
+  if (!AL.items.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); AL.select(Math.min(AL.selectedIdx+1, AL.items.length-1)); scrollToSelected(); }
+  if (e.key === 'ArrowUp')   { e.preventDefault(); AL.select(Math.max(AL.selectedIdx-1, 0)); scrollToSelected(); }
+});
+function scrollToSelected() {
+  const el = AL.listEl && AL.listEl.querySelector('.al-item.selected');
+  if (!el || !AL.scrollEl) return;
+  const margin = 40;
+  const ct = AL.scrollEl.scrollTop, ch = AL.scrollEl.clientHeight;
+  const it = el.offsetTop, ib = it + el.offsetHeight;
+  if (it < ct + margin) AL.scrollEl.scrollTo({ top: it - margin, behavior: 'smooth' });
+  else if (ib > ct + ch - margin) AL.scrollEl.scrollTo({ top: ib - ch + margin, behavior: 'smooth' });
+}
+</script>
+
+<!-- =====================================================================
+     5. ScrollReveal — generic IntersectionObserver utility
+     ===================================================================== -->
+<script>
+function applyScrollReveal(selector) {
+  const els = document.querySelectorAll(selector);
+  if (!els.length) return;
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('revealed');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+  els.forEach((el, i) => {
+    setTimeout(() => observer.observe(el), i * 60);
+  });
+}
+</script>
+
+<!-- =====================================================================
+     6. CountUp — small vanilla counter
+     ===================================================================== -->
+<script>
+function runCountUp(el, target, duration) {
+  const start = performance.now();
+  function frame(now) {
+    const p = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(eased * target);
+    if (p < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+</script>
+
+<!-- =====================================================================
+     7. TextType — typewriter effect for report headline
+     ===================================================================== -->
+<script>
+function typeText(el, text, speedMs) {
+  el.textContent = '';
+  const cursor = document.createElement('span');
+  cursor.className = 'tt-cursor';
+  cursor.textContent = '\u00A0';
+  let i = 0;
+  function step() {
+    if (i <= text.length) {
+      el.textContent = text.slice(0, i);
+      el.appendChild(cursor);
+      i++;
+      setTimeout(step, speedMs);
+    } else {
+      // leave the blinking cursor at the end briefly, then remove
+      setTimeout(() => cursor.remove(), 1400);
+    }
+  }
+  step();
+}
+</script>
+
+<!-- =====================================================================
+     8. Magnet Lines — canvas overlay reacting to cursor, per source card
+     ===================================================================== -->
+<script>
+function applyMagnetLines(containerSelector, cardSelector) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const container = document.querySelector(containerSelector);
+  if (!container) return;
+  container.querySelectorAll(cardSelector).forEach(card => {
+    if (card.dataset.magnetInit) return;
+    card.dataset.magnetInit = '1';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'magnet-lines-canvas';
+    card.insertBefore(canvas, card.firstChild);
+    const ctx = canvas.getContext('2d');
+    let w, h, raf, mx = -9999, my = -9999, active = false;
+    const ROWS = 6, COLS = 8;
+
+    function resize() {
+      const r = card.getBoundingClientRect();
+      w = canvas.width = r.width;
+      h = canvas.height = r.height;
+    }
+    resize();
+    new ResizeObserver(resize).observe(card);
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      const cellW = w / COLS, cellH = h / ROWS;
+      ctx.strokeStyle = 'rgba(22, 217, 122, 0.55)';
+      ctx.lineWidth = 1.2;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cx = cellW * (c + 0.5);
+          const cy = cellH * (r + 0.5);
+          const dx = mx - cx, dy = my - cy;
+          const dist = Math.hypot(dx, dy);
+          const influence = Math.max(0, 1 - dist / 110);
+          const angle = Math.atan2(dy, dx);
+          const len = Math.min(cellW, cellH) * 0.32 * (0.3 + influence * 0.9);
+          const ex = cx + Math.cos(angle) * len * (influence > 0.02 ? 1 : 0.15);
+          const ey = cy + Math.sin(angle) * len * (influence > 0.02 ? 1 : 0.15);
+          ctx.globalAlpha = 0.25 + influence * 0.6;
+          ctx.beginPath();
+          ctx.moveTo(cx - (ex - cx), cy - (ey - cy));
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+      if (active) raf = requestAnimationFrame(draw);
+    }
+
+    card.addEventListener('mouseenter', () => {
+      active = true;
+      raf = requestAnimationFrame(draw);
+    });
+    card.addEventListener('mousemove', e => {
+      const r = card.getBoundingClientRect();
+      mx = e.clientX - r.left;
+      my = e.clientY - r.top;
+    });
+    card.addEventListener('mouseleave', () => {
+      active = false;
+      mx = my = -9999;
+      cancelAnimationFrame(raf);
+      ctx.clearRect(0, 0, w, h);
+    });
+  });
+}
+</script>
+
+<!-- =====================================================================
+     9. Pipeline logic (adapted to inject AnimatedList sidebar + new effects)
+     ===================================================================== -->
 <script>
 const API_BASE = 'http://localhost:8000';
 
@@ -461,7 +1306,6 @@ function esc(str) {
   div.textContent = str;
   return div.innerHTML;
 }
-
 function setStatus(text, isError) {
   const el = document.getElementById('statusLine');
   el.innerHTML = text;
@@ -478,9 +1322,10 @@ async function runPipeline(forceRefresh) {
   document.getElementById('claimsContent').innerHTML = '<div class="empty-hint">Waiting for extraction…</div>';
   document.getElementById('verifyContent').innerHTML = '<div class="empty-hint">Waiting for cross-verification…</div>';
   document.getElementById('reportContent').innerHTML = '<div class="empty-hint">Waiting for final report…</div>';
+  document.getElementById('claimsCountBadge').style.display = 'none';
 
   setStatus(forceRefresh
-    ? '<span class="spinner"></span>Forcing a fresh run — extracting, verifying, reporting (20-30s, uses live Gemini quota)…'
+    ? '<span class="spinner"></span>Forcing fresh run — extracting, verifying, reporting (20–30s)…'
     : '<span class="spinner"></span>Loading verification (uses cached result if available)…');
 
   try {
@@ -496,6 +1341,12 @@ async function runPipeline(forceRefresh) {
     renderClaims(data.extraction_results);
     renderVerification(data.verification);
     renderReport(data.report);
+
+    applyMagicBento('#sourcesContent', '.source-card', { glowColor:'22, 217, 122', spotlightRadius:260, particleCount:5 });
+    applyMagicBento('#verifyContent .verify-grid', '.vcard', { glowColor:'120, 170, 255', spotlightRadius:320, particleCount:4, enableMagnetism:false });
+    applyMagnetLines('#sourcesContent', '.source-card');
+    applyScrollReveal('.claim-source-block');
+    applyScrollReveal('.report-block');
 
     const cacheNote = data._cached
       ? '<span class="cache-badge">(cached result — no new Gemini calls used)</span>'
@@ -513,7 +1364,7 @@ async function runPipeline(forceRefresh) {
 function renderSources(sources) {
   const el = document.getElementById('sourcesContent');
   if (!sources || !sources.length) { el.innerHTML = '<div class="empty-hint">No sources returned.</div>'; return; }
-
+  el.className = '';
   el.innerHTML = `<div class="source-grid">${sources.map(s => `
     <div class="source-card">
       <div class="source-top">
@@ -529,7 +1380,7 @@ function renderSources(sources) {
 function renderClaims(extractionResults) {
   const el = document.getElementById('claimsContent');
   if (!extractionResults || !extractionResults.length) { el.innerHTML = '<div class="empty-hint">No claims extracted.</div>'; return; }
-
+  el.className = '';
   el.innerHTML = `<div class="claims-by-source">${extractionResults.map(r => `
     <div class="claim-source-block">
       <div class="src-label">${esc(r.source_id)}</div>
@@ -543,96 +1394,104 @@ function renderClaims(extractionResults) {
       </div>
     </div>
   `).join('')}</div>`;
+
+  const totalClaims = extractionResults.reduce((sum, r) => sum + ((r.claims || []).length), 0);
+  const badge = document.getElementById('claimsCountBadge');
+  const val = document.getElementById('claimsCountVal');
+  badge.style.display = 'inline-flex';
+  runCountUp(val, totalClaims, 900);
 }
 
 function renderVerification(verification) {
   const el = document.getElementById('verifyContent');
   const groups = (verification && verification.verified_groups) || [];
   if (!groups.length) { el.innerHTML = '<div class="empty-hint">No verification groups returned.</div>'; return; }
+  el.className = '';
 
-  el.innerHTML = `<div class="verify-grid">${groups.map(g => {
+  /* Collect all claims for AnimatedList sidebar */
+  const allClaims = [];
+  groups.forEach(g => {
+    (g.supporting_claims || []).forEach(c => allClaims.push({ category: g.topic || 'Claim', text: c.text }));
+    (g.contradicting_claims || []).forEach(c => allClaims.push({ category: '⚠ Contradicts: ' + (g.topic || ''), text: c.text }));
+  });
+
+  const vcardHtml = groups.map(g => {
     const status = g.status || 'unconfirmed';
     const support = g.supporting_claims || [];
     const contra = g.contradicting_claims || [];
-
     let body;
     if (status === 'contradicted' && contra.length) {
-      body = `
-        <div class="split">
-          <div class="split-side support">
-            <div class="split-label">Supports</div>
-            ${support.map(c => `<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}
-          </div>
-          <div class="vs-divider">VS</div>
-          <div class="split-side contra">
-            <div class="split-label">Disputes</div>
-            ${contra.map(c => `<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}
-          </div>
-        </div>`;
-    } else {
-      body = `<div class="claims-list">${support.map(c => `<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}</div>`;
-    }
-
-    return `
-      <div class="vcard status-${esc(status)}">
-        <div class="vcard-top">
-          <div class="vcard-topic">${esc(g.topic)}</div>
-          <span class="status-badge status-${esc(status)}">${esc(status.replace('_',' '))}</span>
-        </div>
-        <div class="vcard-note">${esc(g.confidence_note)}</div>
-        ${body}
+      body = `<div class="split">
+        <div class="split-side support"><div class="split-label">Supports</div>${support.map(c=>`<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}</div>
+        <div class="vs-divider">VS</div>
+        <div class="split-side contra"><div class="split-label">Disputes</div>${contra.map(c=>`<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}</div>
       </div>`;
-  }).join('')}</div>`;
+    } else {
+      body = `<div class="claims-list">${support.map(c=>`<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}</div>`;
+    }
+    return `<div class="vcard status-${esc(status)}">
+      <div class="vcard-top">
+        <div class="vcard-topic">${esc(g.topic)}</div>
+        <span class="status-badge status-${esc(status)}">${esc(status.replace('_',' '))}</span>
+      </div>
+      <div class="vcard-note">${esc(g.confidence_note)}</div>
+      ${body}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="verify-layout">
+      <div class="verify-grid">${vcardHtml}</div>
+      <div class="animated-list-sidebar">
+        <div class="al-header">All Verified Claims</div>
+        <div style="position:relative;">
+          <div class="al-top-fade"></div>
+          <div class="al-scroll" id="al-scroll">
+            <div id="al-list"></div>
+          </div>
+          <div class="al-bottom-fade"></div>
+        </div>
+      </div>
+    </div>`;
+
+  /* Init AnimatedList */
+  AL.init(document.getElementById('al-scroll'), document.getElementById('al-list'));
+  AL.setItems(allClaims);
 }
 
 function renderReport(report) {
   const el = document.getElementById('reportContent');
   if (!report) { el.innerHTML = '<div class="empty-hint">No report generated.</div>'; return; }
-
-  const confirmed = report.confirmed_facts || [];
-  const disputed = report.disputed_items || [];
+  el.className = '';
+  const confirmed  = report.confirmed_facts || [];
+  const disputed   = report.disputed_items || [];
   const unverified = report.unverified_items || [];
-  const steps = report.recommended_next_steps || [];
+  const steps      = report.recommended_next_steps || [];
 
   el.innerHTML = `
     <div class="report-card">
-      <div class="report-headline">${esc(report.headline)}</div>
-
-      ${confirmed.length ? `
-      <div class="report-block">
-        <div class="report-block-title confirmed">Confirmed Facts</div>
-        <ul class="confirmed-list">${confirmed.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
-      </div>` : ''}
-
-      ${disputed.length ? `
-      <div class="report-block">
-        <div class="report-block-title disputed">Disputed — Requires Resolution</div>
-        ${disputed.map(d => `
-          <div class="disputed-item">
-            <div class="topic">${esc(d.topic)}</div>
-            <ul>${(d.sides || []).map(s => `<li>${esc(s)}</li>`).join('')}</ul>
-          </div>`).join('')}
-      </div>` : ''}
-
-      ${unverified.length ? `
-      <div class="report-block">
-        <div class="report-block-title unverified">Unverified — Requires Follow-up</div>
-        ${unverified.map(u => `<div class="unverified-item">${esc(u)}</div>`).join('')}
-      </div>` : ''}
-
-      ${steps.length ? `
-      <div class="report-block">
-        <div class="report-block-title steps">Recommended Next Verification Steps</div>
-        <ol class="steps-list">${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
-      </div>` : ''}
+      <div class="report-headline" id="report-headline"></div>
+      ${confirmed.length?`<div class="report-block"><div class="report-block-title confirmed">Confirmed Facts</div><ul class="confirmed-list">${confirmed.map(f=>`<li>${esc(f)}</li>`).join('')}</ul></div>`:''}
+      ${disputed.length?`<div class="report-block"><div class="report-block-title disputed">Disputed — Requires Resolution</div>${disputed.map(d=>`<div class="disputed-item"><div class="topic">${esc(d.topic)}</div><ul>${(d.sides||[]).map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div>`).join('')}</div>`:''}
+      ${unverified.length?`<div class="report-block"><div class="report-block-title unverified">Unverified — Requires Follow-up</div>${unverified.map(u=>`<div class="unverified-item">${esc(u)}</div>`).join('')}</div>`:''}
+      ${steps.length?`<div class="report-block"><div class="report-block-title steps">Recommended Next Verification Steps</div><ol class="steps-list">${steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol></div>`:''}
     </div>`;
+
+  const headlineEl = document.getElementById('report-headline');
+  if (headlineEl && report.headline) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      headlineEl.textContent = report.headline;
+    } else {
+      typeText(headlineEl, report.headline, 22);
+    }
+  }
 }
 
 function formatTime(ts) {
   if (!ts) return '';
   try {
     const d = new Date(ts);
-    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:false });
   } catch { return ts; }
 }
 </script>
