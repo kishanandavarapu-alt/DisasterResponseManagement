@@ -1,0 +1,45 @@
+{
+  "scenario": {
+    "name": "Cyclone Amphan – South 24 Parganas, West Bengal",
+    "description": "Super Cyclone Amphan made landfall near Sagar Island on the evening of 20 May 2020, bringing winds up to 185 km/h and storm surges into the Sundarbans delta. This simulation captures the chaotic first hours after landfall, when official channels were overwhelmed and information arrived through a mix of government alerts, local news, citizen reports, and volunteer radio networks — exactly the conditions under which automated cross-verification matters most.",
+    "timeframe": "20 May 2020, 18:00 \u2013 21:30 IST",
+    "location": "Kultali & Patharpratima blocks, South 24 Parganas, West Bengal"
+  },
+  "sources": [
+    {
+      "id": "src_01",
+      "source_name": "West Bengal Govt Disaster Mgmt Alert",
+      "source_type": "official_alert",
+      "timestamp": "2020-05-20T18:45:00+05:30",
+      "raw_text": "ALERT: Embankment breach reported along the Matla river near Kultali block, South 24 Parganas. Saline water entering low-lying villages. NDRF teams dispatched. Residents in affected villages advised to move to nearest cyclone shelter immediately. Power supply suspended as precautionary measure in 12 municipal areas."
+    },
+    {
+      "id": "src_02",
+      "source_name": "ABP Ananda Local News (Twitter)",
+      "source_type": "news_social",
+      "timestamp": "2020-05-20T19:10:00+05:30",
+      "raw_text": "Visuals coming in from Kultali — embankment near Matla river has breached in at least two places, water entering nearby villages fast. Local administration says rescue teams are on the way but roads are blocked by fallen trees, slowing response. More updates as we get them."
+    },
+    {
+      "id": "src_03",
+      "source_name": "Citizen Report - Patharpratima resident",
+      "source_type": "citizen_report",
+      "timestamp": "2020-05-20T19:30:00+05:30",
+      "raw_text": "Water level rising near our village in Patharpratima, wind is very strong, roof of my neighbour's house has blown off. We heard the cyclone shelter at the primary school is already completely full, no one is letting more people in. Don't know where to go now. Please send help."
+    },
+    {
+      "id": "src_04",
+      "source_name": "WB Radio Club - VHF HAM Volunteer Net",
+      "source_type": "volunteer_radio",
+      "timestamp": "2020-05-20T19:50:00+05:30",
+      "raw_text": "Relay from volunteer in Patharpratima sector: primary school shelter has space remaining, around 40-50 more people can be accommodated, volunteers are managing entry at the gate in an orderly way. Separate relay from Kultali sector: approximately 200 people are trapped on rooftops near the breached embankment area, water still rising, requesting boats urgently."
+    },
+    {
+      "id": "src_05",
+      "source_name": "Unverified WhatsApp Forward",
+      "source_type": "social_rumor",
+      "timestamp": "2020-05-20T20:15:00+05:30",
+      "raw_text": "heard from someone that the whole of kultali is underwater now and govt has abandoned the area, NDRF not coming, hundreds dead already, share this so people know the truth, govt is hiding the real numbers"
+    }
+  ]
+}

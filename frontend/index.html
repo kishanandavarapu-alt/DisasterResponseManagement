@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Disaster Response Agent — Cyclone Amphan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-panel: #10151d;
+    --bg-card: #141b25;
+    --border: #232c38;
+    --text: #e8ecf1;
+    --text-dim: #8b97a6;
+    --text-faint: #5a6573;
+
+    --green: #16d97a;
+    --green-bg: rgba(22, 217, 122, 0.08);
+    --red: #ff4757;
+    --red-bg: rgba(255, 71, 87, 0.08);
+    --amber: #ffa726;
+    --amber-bg: rgba(255, 167, 38, 0.08);
+    --gray: #6b7785;
+    --gray-bg: rgba(107, 119, 133, 0.08);
+
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+    padding-bottom: 80px;
+  }
+
+  ::selection { background: var(--green); color: var(--bg); }
+
+  /* ---------- Header ---------- */
+  header {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--bg-panel), var(--bg));
+    padding: 32px 24px 28px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(8px);
+  }
+  .header-inner { max-width: 980px; margin: 0 auto; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 8px var(--amber);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+  }
+  .subtitle { color: var(--text-dim); font-size: 14px; max-width: 640px; margin-bottom: 20px; }
+
+  .run-btn {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: var(--green);
+    color: #06140d;
+    border: none;
+    padding: 12px 22px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    box-shadow: 0 0 0 0 rgba(22,217,122,0.4);
+  }
+  .run-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(22,217,122,0.25); }
+  .run-btn:active { transform: translateY(0); }
+  .run-btn:disabled { background: var(--text-faint); color: var(--bg); cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .refresh-btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    background: transparent;
+    color: var(--text-faint);
+    border: 1px solid var(--border);
+    padding: 11px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: color 0.12s ease, border-color 0.12s ease;
+  }
+  .refresh-btn:hover { color: var(--amber); border-color: var(--amber); }
+  .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .cache-badge {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--text-faint);
+    margin-left: 4px;
+  }
+
+  .status-line {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    min-height: 18px;
+  }
+  .status-line.error { color: var(--red); }
+
+  /* ---------- Layout ---------- */
+  main { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  section { margin-top: 56px; }
+  .section-head { margin-bottom: 18px; }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 4px;
+  }
+  .section-title { font-size: 19px; font-weight: 700; }
+
+  .empty-hint {
+    color: var(--text-faint);
+    font-size: 13.5px;
+    font-family: var(--mono);
+    padding: 20px 0;
+  }
+
+  /* ---------- Source cards ---------- */
+  .source-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .source-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .source-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+  .source-name { font-weight: 600; font-size: 14px; }
+  .source-time { font-family: var(--mono); font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+  .source-type-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+  .tag-official_alert { background: var(--green-bg); color: var(--green); }
+  .tag-news_social { background: rgba(120,170,255,0.1); color: #78aaff; }
+  .tag-citizen_report { background: var(--amber-bg); color: var(--amber); }
+  .tag-volunteer_radio { background: rgba(187,134,255,0.1); color: #bb86ff; }
+  .tag-social_rumor { background: var(--red-bg); color: var(--red); }
+
+  .source-text { font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+
+  /* ---------- Claims ---------- */
+  .claims-by-source { display: flex; flex-direction: column; gap: 16px; }
+  .claim-source-block { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .claim-source-block .src-label { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); margin-bottom: 10px; }
+  .claim-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .claim-chip {
+    font-size: 12.5px;
+    padding: 7px 11px;
+    border-radius: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    max-width: 320px;
+  }
+  .claim-chip .cat {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: block;
+    margin-bottom: 2px;
+    letter-spacing: 0.05em;
+  }
+  .claim-chip.low-spec { border-style: dashed; opacity: 0.6; }
+
+  /* ---------- Verification cards ---------- */
+  .verify-grid { display: flex; flex-direction: column; gap: 14px; }
+  .vcard {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--gray);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .vcard.status-corroborated { border-left-color: var(--green); }
+  .vcard.status-contradicted { border-left-color: var(--red); }
+  .vcard.status-unconfirmed { border-left-color: var(--amber); }
+  .vcard.status-low_confidence { border-left-color: var(--gray); }
+
+  .vcard-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+  .vcard-topic { font-weight: 600; font-size: 15px; }
+  .status-badge {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .status-badge.status-corroborated { background: var(--green-bg); color: var(--green); }
+  .status-badge.status-contradicted { background: var(--red-bg); color: var(--red); }
+  .status-badge.status-unconfirmed { background: var(--amber-bg); color: var(--amber); }
+  .status-badge.status-low_confidence { background: var(--gray-bg); color: var(--gray); }
+
+  .vcard-note { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; }
+
+  .claims-list { font-size: 13px; color: var(--text); }
+  .claims-list .item { padding: 6px 0; border-top: 1px solid var(--border); }
+  .claims-list .item:first-child { border-top: none; }
+  .claims-list .src-tag { font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); margin-right: 6px; }
+
+  .split {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 14px;
+    align-items: stretch;
+    margin-top: 8px;
+  }
+  .split-side {
+    background: var(--bg-panel);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  .split-side.support { border: 1px solid rgba(22,217,122,0.25); }
+  .split-side.contra { border: 1px solid rgba(255,71,87,0.25); }
+  .split-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .split-side.support .split-label { color: var(--green); }
+  .split-side.contra .split-label { color: var(--red); }
+  .vs-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    font-weight: 600;
+  }
+
+  /* ---------- Report ---------- */
+  .report-card {
+    background: linear-gradient(180deg, var(--bg-panel), var(--bg-card));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  .report-headline { font-size: 21px; font-weight: 800; margin-bottom: 22px; line-height: 1.35; }
+  .report-block { margin-bottom: 22px; }
+  .report-block:last-child { margin-bottom: 0; }
+  .report-block-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .report-block-title.confirmed { color: var(--green); }
+  .report-block-title.disputed { color: var(--red); }
+  .report-block-title.unverified { color: var(--amber); }
+  .report-block-title.steps { color: var(--text-dim); }
+
+  ul.confirmed-list { list-style: none; }
+  ul.confirmed-list li {
+    padding: 6px 0 6px 24px;
+    position: relative;
+    font-size: 14px;
+    color: var(--text);
+  }
+  ul.confirmed-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .disputed-item {
+    background: var(--red-bg);
+    border: 1px solid rgba(255,71,87,0.25);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    font-size: 13.5px;
+  }
+  .disputed-item .topic { font-weight: 600; margin-bottom: 6px; }
+  .disputed-item ul { list-style: none; padding-left: 14px; }
+  .disputed-item li { padding: 2px 0; color: var(--text-dim); }
+  .disputed-item li::before { content: '— '; color: var(--red); }
+
+  .unverified-item {
+    background: var(--amber-bg);
+    border: 1px solid rgba(255,167,38,0.25);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-size: 13.5px;
+  }
+
+  ol.steps-list { list-style: none; counter-reset: step; }
+  ol.steps-list li {
+    counter-increment: step;
+    padding: 6px 0 6px 30px;
+    position: relative;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  ol.steps-list li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ---------- Loading ---------- */
+  .spinner {
+    display: inline-block;
+    width: 13px; height: 13px;
+    border: 2px solid var(--text-faint);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    .split { grid-template-columns: 1fr; }
+    .vs-divider { padding: 4px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="eyebrow">Live verification pipeline</div>
+    <h1>Disaster Response Agent</h1>
+    <p class="subtitle">
+      Cross-verifying 5 independent reports from the first hours after Cyclone Amphan's
+      landfall — South 24 Parganas, West Bengal, 20 May 2020. Three agents extract,
+      cross-check, and synthesize a responder-ready situation report.
+    </p>
+    <button class="run-btn" id="runBtn" onclick="runPipeline(false)">▶ Run Verification</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="runPipeline(true)" title="Bypasses cache, costs a fresh round of Gemini calls">↻ Force fresh run</button>
+    <div class="status-line" id="statusLine"></div>
+  </div>
+</header>
+
+<main>
+
+  <section id="sourcesSection">
+    <div class="section-head">
+      <div class="section-label">Stage 1</div>
+      <div class="section-title">Raw Sources</div>
+    </div>
+    <div id="sourcesContent" class="empty-hint">Run verification to load the 5 incoming reports.</div>
+  </section>
+
+  <section id="claimsSection">
+    <div class="section-head">
+      <div class="section-label">Stage 2 — Extractor Agent</div>
+      <div class="section-title">Extracted Claims</div>
+    </div>
+    <div id="claimsContent" class="empty-hint">Waiting for extraction.</div>
+  </section>
+
+  <section id="verifySection">
+    <div class="section-head">
+      <div class="section-label">Stage 3 — Cross-Verifier Agent</div>
+      <div class="section-title">Verification Trail</div>
+    </div>
+    <div id="verifyContent" class="empty-hint">Waiting for cross-verification.</div>
+  </section>
+
+  <section id="reportSection">
+    <div class="section-head">
+      <div class="section-label">Stage 4 — Reporter Agent</div>
+      <div class="section-title">Situation Report</div>
+    </div>
+    <div id="reportContent" class="empty-hint">Waiting for final report.</div>
+  </section>
+
+</main>
+
+<script>
+const API_BASE = 'http://localhost:8000';
+
+const TYPE_LABELS = {
+  official_alert: 'Official Alert',
+  news_social: 'News / Social',
+  citizen_report: 'Citizen Report',
+  volunteer_radio: 'Volunteer Radio',
+  social_rumor: 'Unverified Forward',
+};
+
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function setStatus(text, isError) {
+  const el = document.getElementById('statusLine');
+  el.innerHTML = text;
+  el.className = 'status-line' + (isError ? ' error' : '');
+}
+
+async function runPipeline(forceRefresh) {
+  const runBtn = document.getElementById('runBtn');
+  const refreshBtn = document.getElementById('refreshBtn');
+  runBtn.disabled = true;
+  refreshBtn.disabled = true;
+
+  document.getElementById('sourcesContent').innerHTML = '<div class="empty-hint">Loading…</div>';
+  document.getElementById('claimsContent').innerHTML = '<div class="empty-hint">Waiting for extraction…</div>';
+  document.getElementById('verifyContent').innerHTML = '<div class="empty-hint">Waiting for cross-verification…</div>';
+  document.getElementById('reportContent').innerHTML = '<div class="empty-hint">Waiting for final report…</div>';
+
+  setStatus(forceRefresh
+    ? '<span class="spinner"></span>Forcing a fresh run — extracting, verifying, reporting (20-30s, uses live Gemini quota)…'
+    : '<span class="spinner"></span>Loading verification (uses cached result if available)…');
+
+  try {
+    const url = `${API_BASE}/report${forceRefresh ? '?force_refresh=true' : ''}`;
+    const res = await fetch(url, { method: 'POST' });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.detail || `Server returned ${res.status}`);
+    }
+    const data = await res.json();
+
+    renderSources(data.sources);
+    renderClaims(data.extraction_results);
+    renderVerification(data.verification);
+    renderReport(data.report);
+
+    const cacheNote = data._cached
+      ? '<span class="cache-badge">(cached result — no new Gemini calls used)</span>'
+      : '<span class="cache-badge">(fresh run)</span>';
+    setStatus('✓ Pipeline complete. ' + cacheNote);
+  } catch (err) {
+    setStatus('✗ ' + err.message + ' — is the backend running on :8000?', true);
+    console.error(err);
+  } finally {
+    runBtn.disabled = false;
+    refreshBtn.disabled = false;
+  }
+}
+
+function renderSources(sources) {
+  const el = document.getElementById('sourcesContent');
+  if (!sources || !sources.length) { el.innerHTML = '<div class="empty-hint">No sources returned.</div>'; return; }
+
+  el.innerHTML = `<div class="source-grid">${sources.map(s => `
+    <div class="source-card">
+      <div class="source-top">
+        <div class="source-name">${esc(s.source_name)}</div>
+        <div class="source-time">${esc(formatTime(s.timestamp))}</div>
+      </div>
+      <span class="source-type-tag tag-${esc(s.source_type)}">${esc(TYPE_LABELS[s.source_type] || s.source_type)}</span>
+      <div class="source-text">${esc(s.raw_text)}</div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderClaims(extractionResults) {
+  const el = document.getElementById('claimsContent');
+  if (!extractionResults || !extractionResults.length) { el.innerHTML = '<div class="empty-hint">No claims extracted.</div>'; return; }
+
+  el.innerHTML = `<div class="claims-by-source">${extractionResults.map(r => `
+    <div class="claim-source-block">
+      <div class="src-label">${esc(r.source_id)}</div>
+      <div class="claim-chips">
+        ${(r.claims || []).map(c => `
+          <div class="claim-chip ${c.low_specificity ? 'low-spec' : ''}">
+            <span class="cat">${esc(c.category)}${c.low_specificity ? ' · low specificity' : ''}</span>
+            ${esc(c.text)}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderVerification(verification) {
+  const el = document.getElementById('verifyContent');
+  const groups = (verification && verification.verified_groups) || [];
+  if (!groups.length) { el.innerHTML = '<div class="empty-hint">No verification groups returned.</div>'; return; }
+
+  el.innerHTML = `<div class="verify-grid">${groups.map(g => {
+    const status = g.status || 'unconfirmed';
+    const support = g.supporting_claims || [];
+    const contra = g.contradicting_claims || [];
+
+    let body;
+    if (status === 'contradicted' && contra.length) {
+      body = `
+        <div class="split">
+          <div class="split-side support">
+            <div class="split-label">Supports</div>
+            ${support.map(c => `<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}
+          </div>
+          <div class="vs-divider">VS</div>
+          <div class="split-side contra">
+            <div class="split-label">Disputes</div>
+            ${contra.map(c => `<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}
+          </div>
+        </div>`;
+    } else {
+      body = `<div class="claims-list">${support.map(c => `<div class="item"><span class="src-tag">${esc(c.source_id)}</span>${esc(c.text)}</div>`).join('')}</div>`;
+    }
+
+    return `
+      <div class="vcard status-${esc(status)}">
+        <div class="vcard-top">
+          <div class="vcard-topic">${esc(g.topic)}</div>
+          <span class="status-badge status-${esc(status)}">${esc(status.replace('_',' '))}</span>
+        </div>
+        <div class="vcard-note">${esc(g.confidence_note)}</div>
+        ${body}
+      </div>`;
+  }).join('')}</div>`;
+}
+
+function renderReport(report) {
+  const el = document.getElementById('reportContent');
+  if (!report) { el.innerHTML = '<div class="empty-hint">No report generated.</div>'; return; }
+
+  const confirmed = report.confirmed_facts || [];
+  const disputed = report.disputed_items || [];
+  const unverified = report.unverified_items || [];
+  const steps = report.recommended_next_steps || [];
+
+  el.innerHTML = `
+    <div class="report-card">
+      <div class="report-headline">${esc(report.headline)}</div>
+
+      ${confirmed.length ? `
+      <div class="report-block">
+        <div class="report-block-title confirmed">Confirmed Facts</div>
+        <ul class="confirmed-list">${confirmed.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+      </div>` : ''}
+
+      ${disputed.length ? `
+      <div class="report-block">
+        <div class="report-block-title disputed">Disputed — Requires Resolution</div>
+        ${disputed.map(d => `
+          <div class="disputed-item">
+            <div class="topic">${esc(d.topic)}</div>
+            <ul>${(d.sides || []).map(s => `<li>${esc(s)}</li>`).join('')}</ul>
+          </div>`).join('')}
+      </div>` : ''}
+
+      ${unverified.length ? `
+      <div class="report-block">
+        <div class="report-block-title unverified">Unverified — Requires Follow-up</div>
+        ${unverified.map(u => `<div class="unverified-item">${esc(u)}</div>`).join('')}
+      </div>` : ''}
+
+      ${steps.length ? `
+      <div class="report-block">
+        <div class="report-block-title steps">Recommended Next Verification Steps</div>
+        <ol class="steps-list">${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+      </div>` : ''}
+    </div>`;
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch { return ts; }
+}
+</script>
+
+</body>
+</html>
