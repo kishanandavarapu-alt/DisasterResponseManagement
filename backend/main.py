@@ -1,6 +1,7 @@
 """
 Disaster Response Agent - Backend
 Phase 1: Skeleton + Gemini connectivity check.
+Phase 5: Firestore-backed run history (Google Cloud free tier integration).
 
 Run with:
     uvicorn main:app --reload --port 8000
@@ -14,9 +15,11 @@ import json
 import os
 from pathlib import Path
 
+import firebase_admin
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from firebase_admin import credentials, firestore
 from google import genai
 
 from agents.extractor import extract_all, extract_claims
@@ -53,6 +56,9 @@ _client = None
 # costs 7 Gemini calls and free-tier daily quotas are very limited.
 _report_cache = None
 
+# Lazily-initialized Firestore client (Firebase free Spark tier).
+_firestore_db = None
+
 
 def get_client() -> genai.Client:
     global _client
@@ -64,6 +70,63 @@ def get_client() -> genai.Client:
             )
         _client = genai.Client(api_key=GEMINI_API_KEY)
     return _client
+
+
+def get_firestore_db():
+    """
+    Lazily initializes the Firebase Admin SDK and returns a Firestore client.
+    Credentials come from FIREBASE_SERVICE_ACCOUNT_JSON, a single-line JSON
+    string env var (see setup instructions) -- never a committed file.
+    """
+    global _firestore_db
+    if _firestore_db is None:
+        creds_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+        if not creds_json:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "FIREBASE_SERVICE_ACCOUNT_JSON is not set. Generate a service "
+                    "account key in Firebase Console > Project settings > Service "
+                    "accounts, minify it to one line, and add it to .env."
+                ),
+            )
+        try:
+            cred_dict = json.loads(creds_json)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON: {e}",
+            )
+
+        if not firebase_admin._apps:
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+
+        _firestore_db = firestore.client()
+    return _firestore_db
+
+
+def save_report_to_history(scenario: dict, report: dict) -> None:
+    """
+    Saves a completed pipeline run to Firestore. Failures here are logged
+    but never raised -- a Firestore hiccup should not break the actual
+    verification pipeline response the user is waiting on.
+    """
+    try:
+        db = get_firestore_db()
+        db.collection("reports").add(
+            {
+                "timestamp": firestore.SERVER_TIMESTAMP,
+                "scenario_name": scenario.get("name", "Unknown scenario"),
+                "headline": report.get("headline", ""),
+                "confirmed_count": len(report.get("confirmed_facts", [])),
+                "disputed_count": len(report.get("disputed_items", [])),
+                "unverified_count": len(report.get("unverified_items", [])),
+                "full_report": report,
+            }
+        )
+    except Exception as e:
+        print(f"Warning: failed to save report to Firestore: {e}")
 
 
 # Path to mock_data/sources.json, one level up from backend/
@@ -86,10 +149,11 @@ def load_mock_scenario() -> dict:
 
 @app.get("/health")
 def health():
-    """Confirms the server itself is up, independent of Gemini."""
+    """Confirms the server itself is up, independent of Gemini/Firestore."""
     return {
         "status": "ok",
         "gemini_key_loaded": bool(GEMINI_API_KEY),
+        "firebase_configured": bool(os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")),
     }
 
 
@@ -206,6 +270,9 @@ def run_full_pipeline(force_refresh: bool = False):
     Results are cached in memory after the first successful run, since
     each run costs 7 Gemini calls and free-tier daily quotas are very
     limited. Pass ?force_refresh=true to bypass the cache and re-run.
+
+    Fresh (non-cached) runs are also persisted to Firestore so run
+    history survives server restarts -- see GET /history.
     """
     global _report_cache
     if _report_cache is not None and not force_refresh:
@@ -238,4 +305,46 @@ def run_full_pipeline(force_refresh: bool = False):
         "report": report,
     }
     _report_cache = result
+
+    save_report_to_history(scenario["scenario"], report)
+
     return {**result, "_cached": False}
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 endpoint: Run history (Firestore)
+# ---------------------------------------------------------------------------
+
+@app.get("/history")
+def get_history(limit: int = 10):
+    """
+    Returns past pipeline runs from Firestore, most recent first.
+    This is the visible proof of the Google Cloud (Firestore) integration --
+    surfaced in the frontend as a "Run History" section.
+    """
+    db = get_firestore_db()
+    try:
+        docs = (
+            db.collection("reports")
+            .order_by("timestamp", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+            .stream()
+        )
+        history = []
+        for doc in docs:
+            data = doc.to_dict()
+            ts = data.get("timestamp")
+            history.append(
+                {
+                    "id": doc.id,
+                    "timestamp": ts.isoformat() if ts else None,
+                    "scenario_name": data.get("scenario_name"),
+                    "headline": data.get("headline"),
+                    "confirmed_count": data.get("confirmed_count"),
+                    "disputed_count": data.get("disputed_count"),
+                    "unverified_count": data.get("unverified_count"),
+                }
+            )
+        return {"history": history}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch history: {e}")
